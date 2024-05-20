@@ -1248,7 +1248,7 @@ func (mgr *Manager) minimizeCorpusLocked() {
 	mgr.corpus.Minimize(mgr.cfg.Cover)
 	newSize := mgr.corpus.StatProgs.Val()
 
-	log.Logf(1, "minimized corpus: %v -> %v", currSize, newSize)
+	log.Logf(0, "minimized corpus: %v -> %v", currSize, newSize)
 	mgr.lastMinCorpus = newSize
 
 	// From time to time we get corpus explosion due to different reason:

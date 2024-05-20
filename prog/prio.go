@@ -176,6 +176,8 @@ func (target *Target) calcDynamicPrio(corpus []*Prog) [][]int32 {
 		}
 	}
 	normalizePrios(prios)
+	checkDynamicAverage := countAverageForMap(prios)
+	fmt.Println("[cmx] DynamicPrioAverage Syzkaller: ", checkDynamicAverage)
 	return prios
 }
 
@@ -194,6 +196,21 @@ func normalizePrios(prios [][]int32) {
 			prio[i] = p * total / sum
 		}
 	}
+}
+
+func countAverageForMap(prios [][]int32) int32 {
+	var sum int32
+	var count int32
+	for _, prio := range prios {
+		for _, p := range prio {
+			sum += p
+			count++
+		}
+	}
+	if count == 0 {
+		return 0
+	}
+	return sum / count
 }
 
 // ChooseTable allows to do a weighted choice of a syscall for a given syscall

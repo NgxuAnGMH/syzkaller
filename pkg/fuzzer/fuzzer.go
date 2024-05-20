@@ -15,6 +15,9 @@ import (
 	"github.com/google/syzkaller/pkg/flatrpc"
 	"github.com/google/syzkaller/pkg/fuzzer/queue"
 	"github.com/google/syzkaller/pkg/ipc"
+
+	"github.com/google/syzkaller/pkg/log"
+
 	"github.com/google/syzkaller/pkg/stats"
 	"github.com/google/syzkaller/prog"
 )
@@ -255,6 +258,7 @@ func (fuzzer *Fuzzer) rand() *rand.Rand {
 
 func (fuzzer *Fuzzer) updateChoiceTable(programs []*prog.Prog) {
 	newCt := fuzzer.target.BuildChoiceTable(programs, fuzzer.Config.EnabledCalls)
+	log.Logf(0, "[cmx] default BuildChoiceTable")
 
 	fuzzer.ctMu.Lock()
 	defer fuzzer.ctMu.Unlock()

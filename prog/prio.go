@@ -176,6 +176,8 @@ func (target *Target) calcDynamicPrio(corpus []*Prog) [][]int32 {
 		}
 	}
 	normalizePrios(prios)
+	checkDynamicAverage := countAverageForMap(prios)
+	fmt.Println("[cmx] DynamicPrioAverage Syzkaller: ", checkDynamicAverage)
 	return prios
 }
 
@@ -196,12 +198,107 @@ func normalizePrios(prios [][]int32) {
 	}
 }
 
+func countAverageForMap(prios [][]int32) int32 {
+	var sum int32
+	var count int32
+	for _, prio := range prios {
+		for _, p := range prio {
+			sum += p
+			count++
+		}
+	}
+	if count == 0 {
+		return 0
+	}
+	return sum / count
+}
+
 // ChooseTable allows to do a weighted choice of a syscall for a given syscall
 // based on call-to-call priorities and a set of enabled and generatable syscalls.
 type ChoiceTable struct {
 	target *Target
 	runs   [][]int32
 	calls  []*Syscall
+}
+
+func (target *Target) BuildCTbySyscallDep(sysdep [][]int32, checkAverage int32, corpus []*Prog, enabled map[*Syscall]bool) *ChoiceTable {
+	if enabled == nil {
+		enabled = make(map[*Syscall]bool)
+		for _, c := range target.Syscalls {
+			enabled[c] = true
+		}
+	}
+	noGenerateCalls := make(map[int]bool)
+	enabledCalls := make(map[*Syscall]bool)
+	for call := range enabled {
+		if call.Attrs.NoGenerate {
+			noGenerateCalls[call.ID] = true
+		} else if !call.Attrs.Disabled {
+			enabledCalls[call] = true
+		}
+	}
+	var generatableCalls []*Syscall
+	for c := range enabledCalls {
+		generatableCalls = append(generatableCalls, c)
+	}
+	if len(generatableCalls) == 0 {
+		panic("no syscalls enabled and generatable")
+	}
+	sort.Slice(generatableCalls, func(i, j int) bool {
+		return generatableCalls[i].ID < generatableCalls[j].ID
+	})
+	for _, p := range corpus {
+		for _, call := range p.Calls {
+			if !enabledCalls[call.Meta] && !noGenerateCalls[call.Meta.ID] {
+				fmt.Printf("corpus contains disabled syscall %v\n", call.Meta.Name)
+				for call := range enabled {
+					fmt.Printf("%s: enabled\n", call.Name)
+				}
+				panic("disabled syscall")
+			}
+		}
+	}
+	// Need normalization, or not? for NEXT TIME
+	normalizePrios(sysdep)
+	checkSysDepsAverage := countAverageForMap(sysdep)
+	fmt.Println("[cmx] After Normalize, SyscallDepsAverage Check ---> ", checkSysDepsAverage)
+
+	// prios := target.CalculatePriorities(corpus)
+	static := target.calcStaticPriorities()
+	checkStaticAverage := countAverageForMap(static)
+	fmt.Println("[cmx] StaticPrioAverage Syzkaller: ", checkStaticAverage)
+
+	var dynamic [][]int32
+	if len(corpus) != 0 {
+		// Let's just sum the static and dynamic distributions.
+		dynamic = target.calcDynamicPrio(corpus)
+		for i, prios := range dynamic {
+			dst := static[i]
+			for j, p := range prios {
+				dst[j] += p * 2            // combine dynamic x 2
+				dst[j] += sysdep[i][j] * 2 // combine sysdep ? but not normalized yet
+			}
+		}
+	}
+	prios := static // Now! sysdeps + static + dynamic
+	run := make([][]int32, len(target.Syscalls))
+	// ChoiceTable.runs[][] contains cumulated sum of weighted priority numbers.
+	// This helps in quick binary search with biases when generating programs.
+	// This only applies for system calls that are enabled for the target.
+	for i := range run {
+		if !enabledCalls[target.Syscalls[i]] {
+			continue
+		}
+		run[i] = make([]int32, len(target.Syscalls))
+		var sum int32
+		for j := range run[i] {
+			if enabledCalls[target.Syscalls[j]] {
+				sum += prios[i][j]
+			}
+			run[i][j] = sum
+		}
+	}
+	return &ChoiceTable{target, run, generatableCalls}
 }
 
 func (target *Target) BuildChoiceTable(corpus []*Prog, enabled map[*Syscall]bool) *ChoiceTable {

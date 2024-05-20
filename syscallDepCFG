@@ -1,0 +1,20 @@
+{
+	"target": "linux/amd64",
+	"http": "127.0.0.1:56742",
+	"workdir": "/home/cmx714/SyzTool/BestSyzKaller/workDir",
+	"kernel_obj": "/home/cmx714/Linux-ClangBuild/ForSyzkaller/Linux-5.15",
+	"image": "/home/cmx714/Linux-ClangBuild/ForSyzkaller/imageTool/bullseye.img",
+	"sshkey": "/home/cmx714/Linux-ClangBuild/ForSyzkaller/imageTool/bullseye.id_rsa",
+	"syzkaller": "/home/cmx714/SyzTool/BestSyzKaller",
+	"procs": 8,
+	"type": "qemu",
+	"vm": {
+		"count": 3,
+		"kernel": "/home/cmx714/Linux-ClangBuild/ForSyzkaller/Linux-5.15/arch/x86/boot/bzImage",
+		"cpu": 2,
+		"mem": 2048
+	},
+	"syscall_dep_dir": "/home/cmx714/Linux-ClangBuild/script-Next/5.15-Linux/weight_ignsame_rename.json",
+	"fuzzing_vms": 3,
+	"reproduce": false
+}

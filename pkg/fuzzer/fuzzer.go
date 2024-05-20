@@ -15,6 +15,7 @@ import (
 	"github.com/google/syzkaller/pkg/flatrpc"
 	"github.com/google/syzkaller/pkg/fuzzer/queue"
 	"github.com/google/syzkaller/pkg/ipc"
+	"github.com/google/syzkaller/pkg/log"
 	"github.com/google/syzkaller/pkg/stats"
 	"github.com/google/syzkaller/prog"
 )
@@ -146,6 +147,12 @@ type Config struct {
 	NoMutateCalls  map[int]bool
 	FetchRawCover  bool
 	NewInputFilter func(call string) bool
+
+	// Syscall Dependency
+	SyscallDeps        [][]int32
+	SyscallDepsAverage int32
+	HasSysDeps         bool
+	HasDoneTimes       *int32
 }
 
 func (fuzzer *Fuzzer) triageProgCall(p *prog.Prog, info *ipc.CallInfo, call int, flags ProgTypes) {
@@ -254,7 +261,21 @@ func (fuzzer *Fuzzer) rand() *rand.Rand {
 }
 
 func (fuzzer *Fuzzer) updateChoiceTable(programs []*prog.Prog) {
-	newCt := fuzzer.target.BuildChoiceTable(programs, fuzzer.Config.EnabledCalls)
+	// Add: pick up WHICH strategy to use.
+	var newCt *prog.ChoiceTable
+	if fuzzer.Config.HasSysDeps && (*fuzzer.Config.HasDoneTimes%2 == 1) {
+		log.Logf(0, "[cmx] SyscallDepsAverage %v", fuzzer.Config.SyscallDepsAverage)
+		log.Logf(0, "[cmx] using BuildCTbySyscallDep, fuzzer receive SyscallDeps[0][0] %v", fuzzer.Config.SyscallDeps[0][0])
+		*fuzzer.Config.HasDoneTimes++
+		newCt = fuzzer.target.BuildCTbySyscallDep(fuzzer.Config.SyscallDeps, fuzzer.Config.SyscallDepsAverage, programs, fuzzer.Config.EnabledCalls)
+	} else {
+		log.Logf(0, "[cmx] default BuildChoiceTable")
+		*fuzzer.Config.HasDoneTimes++
+		newCt = fuzzer.target.BuildChoiceTable(programs, fuzzer.Config.EnabledCalls)
+	}
+
+	// above is DIY, below is the original code:
+	// newCt := fuzzer.target.BuildChoiceTable(programs, fuzzer.Config.EnabledCalls)
 
 	fuzzer.ctMu.Lock()
 	defer fuzzer.ctMu.Unlock()

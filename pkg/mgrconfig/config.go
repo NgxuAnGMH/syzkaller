@@ -10,6 +10,13 @@ import (
 )
 
 type Config struct {
+
+	// NgxuAnGMH:
+	// Linux Kernel Static Analysis Result
+	// System call dependency graph
+	// it is a json file absolute path
+	SyscallDepDir string `json:"syscall_dep_dir,omitempty"`
+
 	// Instance name (used for identification and as GCE instance prefix).
 	Name string `json:"name"`
 	// Target OS/arch, e.g. "linux/arm64" or "linux/amd64/386" (amd64 OS with 386 test process).

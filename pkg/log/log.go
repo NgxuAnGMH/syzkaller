@@ -77,6 +77,10 @@ func V(level int) bool {
 
 func Logf(v int, msg string, args ...interface{}) {
 	writeMessage(v, "", msg, args...)
+	if v == 0 { // use '>' '>>' in terminal command, to collect the logInfo into a file
+		myLogSys := time.Now().Format("2006/01/02 15:04:05 ") + message("", msg, args...)
+		fmt.Println(myLogSys)
+	}
 }
 
 func Errorf(msg string, args ...interface{}) {

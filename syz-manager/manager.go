@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"net"
 	"os"
@@ -99,6 +100,12 @@ type Manager struct {
 	bootTime stats.AverageValue[time.Duration]
 
 	Stats
+
+	// Syscall Dependency
+	syscallDeps        [][]int32
+	hasSysDeps         bool
+	syscallDepsAverage int32
+	hasDoneTimes       *int32
 }
 
 const (
@@ -191,6 +198,9 @@ func RunManager(cfg *mgrconfig.Config) {
 	go mgr.preloadCorpus()
 	mgr.initHTTP() // Creates HTTP server.
 	mgr.collectUsedFiles()
+
+	mgr.loadSyscallDeps() // load Syscall dependency file
+
 	go mgr.corpusInputHandler(corpusUpdates)
 
 	// Create RPC server for fuzzers.
@@ -1248,7 +1258,7 @@ func (mgr *Manager) minimizeCorpusLocked() {
 	mgr.corpus.Minimize(mgr.cfg.Cover)
 	newSize := mgr.corpus.StatProgs.Val()
 
-	log.Logf(1, "minimized corpus: %v -> %v", currSize, newSize)
+	log.Logf(0, "minimized corpus: %v -> %v", currSize, newSize)
 	mgr.lastMinCorpus = newSize
 
 	// From time to time we get corpus explosion due to different reason:
@@ -1376,6 +1386,10 @@ func (mgr *Manager) machineChecked(features flatrpc.Feature, enabledSyscalls map
 			defer mgr.mu.Unlock()
 			return !mgr.saturatedCalls[call]
 		},
+		SyscallDeps:        mgr.syscallDeps,
+		SyscallDepsAverage: mgr.syscallDepsAverage,
+		HasSysDeps:         mgr.hasSysDeps,
+		HasDoneTimes:       mgr.hasDoneTimes,
 	}, rnd, mgr.target)
 	mgr.fuzzer.Store(fuzzerObj)
 
@@ -1586,4 +1600,121 @@ func publicWebAddr(addr string) string {
 		}
 	}
 	return "http://" + addr
+}
+
+// help Func
+func sumMapStr2Int(ws map[string]int32) int32 {
+	var ret int32
+	for _, dep := range ws {
+		ret += dep
+	}
+	return ret
+}
+
+// sqrt the SyscallDeps, since the weight is not linear
+func sqrtSyscallDeps(ws map[string]map[string]int32) {
+	for sys1, deps := range ws {
+		for sys2, dep := range deps {
+			ws[sys1][sys2] = int32(2.0 * math.Sqrt(float64(dep)))
+		}
+	}
+}
+
+// load weight.fiel, init SyscallDeps
+func (mgr *Manager) loadSyscallDeps() {
+	if mgr.cfg.SyscallDepDir == "" {
+		// log.Logf(0, "[cmx] config param `syscall_dep_dir` is empty")
+		fmt.Println("[cmx] config param `syscall_dep_dir` is empty")
+		mgr.hasSysDeps = false
+		return
+	}
+	jsonFile, err := os.Open(mgr.cfg.SyscallDepDir)
+	defer jsonFile.Close()
+	if err != nil {
+		fmt.Println("[cmx] open `syscall_dep_dir` failed: ", err)
+		mgr.hasSysDeps = false
+		return
+	}
+	byteValue, err := io.ReadAll(jsonFile)
+	if err != nil {
+		fmt.Println("[cmx] read `syscall_dep_dir` failed: ", err)
+		mgr.hasSysDeps = false
+		return
+	}
+	var result map[string]map[string]int32
+	err = json.Unmarshal([]byte(byteValue), &result)
+	// fmt.Println("[cmx] syscall_dep_dir: ", result) // success
+	sqrtSyscallDeps(result)
+	// fmt.Println("[cmx] syscall_dep_dir: ", result) // check change
+	if err != nil {
+		fmt.Println("[cmx] unmarshal `syscall_dep_dir` failed: ", err)
+		mgr.hasSysDeps = false
+		return
+	}
+	syscalls := mgr.target.Syscalls
+	prios := make([][]int32, len(syscalls))
+	var sum, countAll int32
+	for i := range prios {
+		prios[i] = make([]int32, len(syscalls))
+		// sys1 := "__se_sys_" + syscalls[i].CallName
+		sys1 := syscalls[i].CallName
+		for j := range prios[i] {
+			// sys2 := "__se_sys_" + syscalls[j].CallName
+			sys2 := syscalls[j].CallName
+			if ws, ok1 := result[sys1]; ok1 {
+				if w, ok2 := ws[sys2]; ok2 {
+					countAll++
+					if sys1 != sys2 {
+						prios[syscalls[i].ID][syscalls[j].ID] = w
+						sum += w
+					} else {
+						self2self := sumMapStr2Int(ws) / int32(len(syscalls)-1)
+						prios[syscalls[i].ID][syscalls[j].ID] = self2self
+						sum += self2self
+					}
+				}
+			}
+		}
+	}
+
+	// fix: Magic Number?
+	// may have some syscalls do not analysis? (Static Analysis)
+	// but in targe.OS(because ugly implementation).
+	// and CT ChoiceTable (actually run table) can NOT be 0
+	// so here assign these 0-value with a magic num(512)
+	// try another way (above)
+	for i := range prios {
+		for j := range prios[i] {
+			if prios[i][j] == 0 {
+				prios[i][j] = intArrayAverage(prios[i])
+			}
+		}
+	}
+
+	average := averagePrios(prios)
+
+	mgr.hasSysDeps = true
+	mgr.syscallDeps = prios
+	mgr.syscallDepsAverage = average
+	mgr.hasDoneTimes = new(int32)
+	fmt.Println("[cmx] load syscall_dep_file") // check change
+}
+
+func intArrayAverage(ws []int32) int32 {
+	var ret int32
+	for _, dep := range ws {
+		ret += dep
+	}
+	return ret / int32(len(ws))
+}
+
+func averagePrios(prios [][]int32) int32 {
+	var sum, countAll int32
+	for i := range prios {
+		for j := range prios[i] {
+			countAll++
+			sum += prios[i][j]
+		}
+	}
+	return sum / countAll
 }

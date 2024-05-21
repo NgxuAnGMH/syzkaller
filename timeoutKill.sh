@@ -3,7 +3,7 @@
 # 设置计时器，72小时
 timeout 72h bash -c "
     # 在当前目录运行 ./bin/syz-manager 命令
-    ./bin/syz-manager -config=my.cfg > ./workDir/tmpLog
+    ./bin/syz-manager -config=origin.cfg > ./workDir/tmpLog
 "
 
 # 计时器到时，kill 掉 syz-manager 进程

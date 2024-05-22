@@ -1688,7 +1688,7 @@ func (mgr *Manager) loadSyscallDeps() {
 		for j := range prios[i] {
 			if prios[i][j] == 0 {
 				// prios[i][j] = intArrayAverage(prios[i])
-				prios[i][j] = 512
+				prios[i][j] = int32(math.Sqrt(float64(512)))
 			}
 		}
 	}

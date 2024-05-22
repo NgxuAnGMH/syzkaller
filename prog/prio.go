@@ -221,7 +221,7 @@ type ChoiceTable struct {
 	calls  []*Syscall
 }
 
-func (target *Target) BuildCTbySyscallDep(sysdep [][]int32, checkAverage int32, corpus []*Prog, enabled map[*Syscall]bool) *ChoiceTable {
+func (target *Target) BuildCTbySyscallDep(sysdep [][]int32, corpus []*Prog, enabled map[*Syscall]bool) *ChoiceTable {
 	if enabled == nil {
 		enabled = make(map[*Syscall]bool)
 		for _, c := range target.Syscalls {

@@ -267,7 +267,7 @@ func (fuzzer *Fuzzer) updateChoiceTable(programs []*prog.Prog) {
 		log.Logf(0, "[cmx] SyscallDepsAverage %v", fuzzer.Config.SyscallDepsAverage)
 		log.Logf(0, "[cmx] using BuildCTbySyscallDep, fuzzer receive SyscallDeps[0][0] %v", fuzzer.Config.SyscallDeps[0][0])
 		*fuzzer.Config.HasDoneTimes++
-		newCt = fuzzer.target.BuildCTbySyscallDep(fuzzer.Config.SyscallDeps, fuzzer.Config.SyscallDepsAverage, programs, fuzzer.Config.EnabledCalls)
+		newCt = fuzzer.target.BuildCTbySyscallDep(fuzzer.Config.SyscallDeps, programs, fuzzer.Config.EnabledCalls)
 	} else {
 		log.Logf(0, "[cmx] default BuildChoiceTable")
 		*fuzzer.Config.HasDoneTimes++

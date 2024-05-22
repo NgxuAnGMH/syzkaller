@@ -1615,7 +1615,8 @@ func sumMapStr2Int(ws map[string]int32) int32 {
 func sqrtSyscallDeps(ws map[string]map[string]int32) {
 	for sys1, deps := range ws {
 		for sys2, dep := range deps {
-			ws[sys1][sys2] = int32(2.0 * math.Sqrt(float64(dep)))
+			// ws[sys1][sys2] = int32(2.0 * math.Sqrt(float64(dep)))
+			ws[sys1][sys2] = int32(math.Sqrt(float64(dep)))
 		}
 	}
 }

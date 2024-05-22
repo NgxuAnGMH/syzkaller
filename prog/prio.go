@@ -275,8 +275,9 @@ func (target *Target) BuildCTbySyscallDep(sysdep [][]int32, checkAverage int32, 
 		for i, prios := range dynamic {
 			dst := static[i]
 			for j, p := range prios {
-				dst[j] += p * 2            // combine dynamic x 2
-				dst[j] += sysdep[i][j] * 2 // combine sysdep ? but not normalized yet
+				dst[j] += p * 2 // combine dynamic x 2
+				// dst[j] += sysdep[i][j] * 2 // combine sysdep ? but not normalized yet
+				dst[j] += sysdep[i][j] // combine sysdep ? but not normalized yet
 			}
 		}
 	}
